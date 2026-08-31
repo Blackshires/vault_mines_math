@@ -2,6 +2,7 @@
 
 from gamestate import GameState
 from game_config import GameConfig
+from runtime_contract import VaultMinesRuntime
 from src.state.run_sims import create_books
 from src.write_data.write_configs import generate_configs
 
@@ -41,6 +42,16 @@ if __name__ == "__main__":
         "Feature martingale validation: "
         f"{feature_math['states_checked']} local states, "
         f"worst_error={feature_math['worst_error']:.3e}"
+    )
+
+    runtime = VaultMinesRuntime(gamestate)
+    runtime_check = runtime.validate_contract()
+    print(
+        "Interactive runtime contract: "
+        f"hiddenStart={runtime_check['hidden_start_ok']}, "
+        f"hiddenReveal={runtime_check['hidden_reveal_ok']}, "
+        f"deterministicReplay={runtime_check['deterministic_replay']}, "
+        f"terminalAudit={runtime_check['terminal_audit_data']}"
     )
 
     print("Max legal safe reveals before x5000 cap:")
@@ -85,7 +96,7 @@ if __name__ == "__main__":
         f"defusedMines={feature_sim['defused_mines']}"
     )
     print(
-        "V1 provisional feature frequencies: "
+        "V1 configured feature frequencies: "
         f"naturalShieldRound={config.natural_shield_round_probability:.3f}, "
         f"keyPerEligibleSafeCell={config.key_cell_probability:.3f}"
     )
