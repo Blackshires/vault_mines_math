@@ -154,10 +154,10 @@ class GameExecutables(GameCalculations):
     def cashout_round(self, state: VaultMinesRound) -> float:
         """End a live round and return its multiplier."""
 
-        if state.finished:
-            if state.cashed_out:
-                raise RuntimeError("round has already been cashed out")
+        if not state.alive:
             return 0.0
+        if state.cashed_out:
+            raise RuntimeError("round has already been cashed out")
         if state.successful_reveals <= 0:
             raise RuntimeError("cashout requires at least one successful reveal")
 
