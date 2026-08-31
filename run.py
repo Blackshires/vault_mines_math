@@ -117,6 +117,57 @@ if __name__ == "__main__":
             f"{row['sample_rtp']:>9.4f}"
         )
 
+    # Compare candidate feature-frequency profiles without permanently mutating
+    # the configured V1 values. The exact payout martingale does not depend on
+    # these frequencies; this sweep is solely for gameplay/feature visibility.
+    original_shield_probability = config.natural_shield_round_probability
+    original_key_probability = config.key_cell_probability
+    profiles = (
+        ("Current", 0.05, 0.13),
+        ("Balanced", 0.10, 0.18),
+        ("Rich", 0.15, 0.22),
+    )
+
+    print("\nV1 feature profile sweep (5000 rounds/case):")
+    print(
+        "profile   shield key  mines target reach% key% 3keys% "
+        "natShield% defuse% VAULT% sampleRTP"
+    )
+    try:
+        for profile_index, (name, shield_probability, key_probability) in enumerate(profiles):
+            config.natural_shield_round_probability = shield_probability
+            config.key_cell_probability = key_probability
+            rows = gamestate.simulate_calibration_matrix(
+                rounds_per_case=5000,
+                mine_counts=(1, 3, 5, 10),
+                safe_targets=(5, 10),
+                seed=20261000 + profile_index,
+            )
+            for row in rows:
+                print(
+                    f"{name:<9} "
+                    f"{shield_probability:>6.2f} {key_probability:>4.2f} "
+                    f"{row['mines']:>5} {row['target']:>6} "
+                    f"{100 * row['target_reach_rate']:>6.2f} "
+                    f"{100 * row['any_key_rate']:>5.2f} "
+                    f"{100 * row['three_keys_rate']:>6.2f} "
+                    f"{100 * row['natural_shield_rate']:>10.2f} "
+                    f"{100 * row['defused_round_rate']:>7.2f} "
+                    f"{100 * row['vault_rate']:>6.2f} "
+                    f"{row['sample_rtp']:>9.4f}"
+                )
+    finally:
+        # Books/config generation below must always use the actual configured V1
+        # profile, not whichever experimental profile was tested last.
+        config.natural_shield_round_probability = original_shield_probability
+        config.key_cell_probability = original_key_probability
+
+    print(
+        "Profile sweep restored configured frequencies: "
+        f"naturalShieldRound={config.natural_shield_round_probability:.3f}, "
+        f"keyPerEligibleSafeCell={config.key_cell_probability:.3f}"
+    )
+
     if run_conditions["run_sims"]:
         create_books(
             gamestate,
