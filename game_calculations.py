@@ -110,8 +110,11 @@ class GameCalculations(Executables):
         """Check whether the next interactive reveal is legal under x5000.
 
         A protected click cannot terminally lose and does not increase the fair
-        account, so it cannot cross the cap.  Without a shield, the next safe
-        branch must itself remain at or below x5000.
+        account, so it cannot cross the cap. Without a shield, continuation is
+        allowed only when the next safe branch would itself remain at or below
+        x5000. This check deliberately uses the uncapped payout value directly:
+        ``cashout_from_account`` is reserved for already-legal cashout states and
+        raises when the cap is exceeded.
         """
 
         if hidden <= 0:
@@ -124,7 +127,8 @@ class GameCalculations(Executables):
             return False
 
         next_account = self.next_unprotected_safe_account(account, hidden, mines)
-        return self.cashout_from_account(next_account) <= float(self.config.wincap)
+        next_payout = float(self.config.rtp) * next_account
+        return next_payout <= float(self.config.wincap) + 1e-12
 
     @staticmethod
     def depth_label(successful_reveals: int) -> str:
