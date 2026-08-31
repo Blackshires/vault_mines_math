@@ -90,6 +90,33 @@ if __name__ == "__main__":
         f"keyPerEligibleSafeCell={config.key_cell_probability:.3f}"
     )
 
+    calibration = gamestate.simulate_calibration_matrix(
+        rounds_per_case=5000,
+        mine_counts=(1, 3, 5, 10, 15, 20),
+        safe_targets=(1, 3, 5, 10),
+        seed=20260901,
+    )
+    print("\nV1 feature calibration matrix (5000 rounds/case):")
+    print(
+        "mines target reach% win% key% 3keys% natShield% defuse% "
+        "DII% DIII% VAULT% capStop% sampleRTP"
+    )
+    for row in calibration:
+        print(
+            f"{row['mines']:>5} {row['target']:>6} "
+            f"{100 * row['target_reach_rate']:>6.2f} "
+            f"{100 * row['win_rate']:>5.2f} "
+            f"{100 * row['any_key_rate']:>5.2f} "
+            f"{100 * row['three_keys_rate']:>6.2f} "
+            f"{100 * row['natural_shield_rate']:>10.2f} "
+            f"{100 * row['defused_round_rate']:>7.2f} "
+            f"{100 * row['depth_ii_rate']:>5.2f} "
+            f"{100 * row['depth_iii_rate']:>6.2f} "
+            f"{100 * row['vault_rate']:>6.2f} "
+            f"{100 * row['cap_stop_rate']:>8.2f} "
+            f"{row['sample_rtp']:>9.4f}"
+        )
+
     if run_conditions["run_sims"]:
         create_books(
             gamestate,
