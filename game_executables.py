@@ -216,3 +216,114 @@ class GameExecutables(GameCalculations):
             "vault_protection_awards": vault_protections,
             "defused_mines": defused_mines,
         }
+
+    def simulate_calibration_matrix(
+        self,
+        rounds_per_case: int = 5000,
+        mine_counts: tuple[int, ...] = (1, 3, 5, 10, 15, 20),
+        safe_targets: tuple[int, ...] = (1, 3, 5, 10),
+        seed: int = 20260901,
+    ) -> list[dict]:
+        """Measure feature visibility by mine count and intended play depth.
+
+        This is a gameplay calibration diagnostic, not an RTP certification test.
+        Each row uses a fixed mine count and keeps revealing deterministic cell
+        indices until the requested number of successful safe reveals, a terminal
+        mine, or the x5000 continuation gate.
+        """
+
+        if rounds_per_case <= 0:
+            raise ValueError("rounds_per_case must be positive")
+
+        rng = random.Random(seed)
+        rows = []
+
+        for mines in mine_counts:
+            if mines < 1 or mines > 20:
+                raise ValueError("calibration mine counts must be between 1 and 20")
+
+            for target in safe_targets:
+                if target <= 0:
+                    raise ValueError("calibration safe targets must be positive")
+
+                total_return = 0.0
+                wins = 0
+                target_reached = 0
+                any_key = 0
+                three_keys = 0
+                natural_shields = 0
+                defused_rounds = 0
+                defused_mines = 0
+                depth_ii = 0
+                depth_iii = 0
+                vault = 0
+                cap_stops = 0
+
+                for _ in range(rounds_per_case):
+                    state = self.create_round(mines, rng)
+                    saw_key = False
+                    saw_natural_shield = False
+                    round_defused = False
+                    stopped_by_cap = False
+
+                    for cell in range(self.BOARD_SIZE):
+                        if not state.alive or state.successful_reveals >= target:
+                            break
+                        if not self.can_continue_round(state):
+                            stopped_by_cap = True
+                            break
+
+                        result = self.reveal_cell(state, cell)
+                        saw_key = saw_key or result["keyAwarded"]
+                        saw_natural_shield = (
+                            saw_natural_shield or result["naturalShieldAwarded"]
+                        )
+                        if result["mineDefused"]:
+                            round_defused = True
+                            defused_mines += 1
+
+                    if state.successful_reveals >= target:
+                        target_reached += 1
+                    if state.successful_reveals >= 3:
+                        depth_ii += 1
+                    if state.successful_reveals >= 6:
+                        depth_iii += 1
+                    if state.successful_reveals >= 10:
+                        vault += 1
+                    if saw_key:
+                        any_key += 1
+                    if state.keys_found >= self.config.keys_for_vault_protection:
+                        three_keys += 1
+                    if saw_natural_shield:
+                        natural_shields += 1
+                    if round_defused:
+                        defused_rounds += 1
+                    if stopped_by_cap:
+                        cap_stops += 1
+
+                    if state.alive and state.successful_reveals > 0:
+                        total_return += self.cashout_round(state)
+                        wins += 1
+
+                denom = float(rounds_per_case)
+                rows.append(
+                    {
+                        "mines": mines,
+                        "target": target,
+                        "rounds": rounds_per_case,
+                        "sample_rtp": total_return / denom,
+                        "win_rate": wins / denom,
+                        "target_reach_rate": target_reached / denom,
+                        "any_key_rate": any_key / denom,
+                        "three_keys_rate": three_keys / denom,
+                        "natural_shield_rate": natural_shields / denom,
+                        "defused_round_rate": defused_rounds / denom,
+                        "defused_mines": defused_mines,
+                        "depth_ii_rate": depth_ii / denom,
+                        "depth_iii_rate": depth_iii / denom,
+                        "vault_rate": vault / denom,
+                        "cap_stop_rate": cap_stops / denom,
+                    }
+                )
+
+        return rows
