@@ -6,7 +6,7 @@ from src.executables.executables import Executables
 
 
 class GameCalculations(Executables):
-    """Pure Mines probability and payout helpers."""
+    """Pure Mines and feature-state probability/payout helpers."""
 
     BOARD_SIZE = 25
 
@@ -37,12 +37,7 @@ class GameCalculations(Executables):
         return float(self.config.rtp / probability)
 
     def cashout_multiplier(self, mines: int, safe_picks: int) -> float:
-        """Return a legal Vault Mines cashout multiplier.
-
-        Vault Mines does not truncate a mathematically fair multiplier to x5000,
-        because doing so would reduce RTP. Instead, continuation is blocked before
-        the next successful reveal would require a payout above the cap.
-        """
+        """Return a legal pure-Mines cashout multiplier."""
 
         multiplier = self.uncapped_cashout_multiplier(mines, safe_picks)
         if multiplier > float(self.config.wincap):
@@ -61,7 +56,7 @@ class GameCalculations(Executables):
         return self.uncapped_cashout_multiplier(mines, next_safe) <= float(self.config.wincap)
 
     def max_legal_safe_picks(self, mines: int) -> int:
-        """Largest number of safe reveals allowed without truncating the fair payout."""
+        """Largest pure-Mines safe-reveal count allowed without payout truncation."""
 
         max_safe = self.BOARD_SIZE - mines
         legal = 0
@@ -81,8 +76,114 @@ class GameCalculations(Executables):
             return 0.0
         return remaining_safe / remaining_tiles
 
+    # ------------------------------------------------------------------
+    # V1 interactive feature account
+    # ------------------------------------------------------------------
+
+    def cashout_from_account(self, account: float) -> float:
+        """Convert the fair-state account into the RTP-adjusted cashout value."""
+
+        payout = float(self.config.rtp) * float(account)
+        if payout > float(self.config.wincap) + 1e-12:
+            raise ValueError(f"feature cashout exceeds x{self.config.wincap}: {payout}")
+        return payout
+
+    @staticmethod
+    def next_unprotected_safe_account(account: float, hidden: int, mines: int) -> float:
+        """Update the fair account after an unprotected safe reveal.
+
+        If h cells remain and m are mines, the safe probability is (h-m)/h.
+        Dividing the account by that probability makes the account a martingale.
+        """
+
+        if hidden <= 0 or mines < 0 or mines >= hidden:
+            raise ValueError("unprotected safe transition requires 0 <= mines < hidden")
+        return float(account) * hidden / (hidden - mines)
+
+    def can_continue_feature_state(
+        self,
+        account: float,
+        hidden: int,
+        mines: int,
+        shield_charges: int,
+    ) -> bool:
+        """Check whether the next interactive reveal is legal under x5000.
+
+        A protected click cannot terminally lose and does not increase the fair
+        account, so it cannot cross the cap.  Without a shield, the next safe
+        branch must itself remain at or below x5000.
+        """
+
+        if hidden <= 0:
+            return False
+        if mines < 0 or mines > hidden:
+            raise ValueError("invalid hidden/mines state")
+        if shield_charges > 0:
+            return True
+        if mines >= hidden:
+            return False
+
+        next_account = self.next_unprotected_safe_account(account, hidden, mines)
+        return self.cashout_from_account(next_account) <= float(self.config.wincap)
+
+    @staticmethod
+    def depth_label(successful_reveals: int) -> str:
+        """Presentation-only Depth tier."""
+
+        if successful_reveals <= 2:
+            return "I"
+        if successful_reveals <= 5:
+            return "II"
+        if successful_reveals <= 9:
+            return "III"
+        return "VAULT"
+
+    def validate_feature_martingale(self, tolerance: float = 1e-12) -> dict:
+        """Prove the local Keys/Shield state transition preserves fair account EV.
+
+        Payload type does not alter the current-click payout account. Keys and
+        Shields only modify future risk. With no shield, a mine terminates at 0
+        and a safe branch divides the account by P(safe). With a shield, both
+        mine and safe branches survive with the same account.
+        """
+
+        states_checked = 0
+        worst_error = 0.0
+        sample_accounts = (1.0, 1.37, 17.25, 499.0)
+
+        for hidden in range(1, self.BOARD_SIZE + 1):
+            for mines in range(0, min(20, hidden) + 1):
+                for shield_charges in range(0, self.config.max_shield_charges + 1):
+                    for account in sample_accounts:
+                        if shield_charges > 0:
+                            expected_after = account
+                        elif mines >= hidden:
+                            # No safe branch exists; continuation is illegal.
+                            continue
+                        else:
+                            p_safe = (hidden - mines) / hidden
+                            safe_account = self.next_unprotected_safe_account(
+                                account, hidden, mines
+                            )
+                            expected_after = p_safe * safe_account
+
+                        error = abs(expected_after - account)
+                        worst_error = max(worst_error, error)
+                        states_checked += 1
+                        if error > tolerance:
+                            raise AssertionError(
+                                "Feature martingale mismatch: "
+                                f"h={hidden}, m={mines}, q={shield_charges}, "
+                                f"account={account}, expected={expected_after}"
+                            )
+
+        return {
+            "states_checked": states_checked,
+            "worst_error": worst_error,
+        }
+
     def generate_multiplier_table(self) -> dict[int, list[float]]:
-        """Generate all legal payout multipliers for mine counts 1 through 20."""
+        """Generate all legal pure-Mines payout multipliers for mine counts 1-20."""
 
         table = {}
         for mines in range(1, 21):
@@ -93,7 +194,7 @@ class GameCalculations(Executables):
         return table
 
     def validate_analytic_rtp(self, tolerance: float = 1e-12) -> dict:
-        """Verify every legal pure-Mines stopping state returns the configured RTP."""
+        """Verify every legal pure-Mines stopping state returns configured RTP."""
 
         worst_error = 0.0
         states_checked = 0
