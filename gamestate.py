@@ -16,9 +16,11 @@ class GameState(GameStateOverride):
         while self.repeat:
             self.reset_book()
 
-            mines = ((sim // 25) % 20) + 1
-            max_safe = 25 - mines
-            safe_target = (sim % max_safe) + 1
+            # SDK smoke simulation: cycle through all 20 selectable mine counts
+            # and cash out after the first safe reveal. Every one of these states
+            # has exact expected return = configured RTP and moderate variance.
+            mines = (sim % 20) + 1
+            safe_target = 1
 
             probability = self.survival_probability(mines, safe_target)
             multiplier = self.cashout_multiplier(mines, safe_target)
