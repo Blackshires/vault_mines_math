@@ -26,13 +26,12 @@ class GameConfig(Config):
         self.win_type = "other"
         self.rtp = 0.967
 
-        # V1 feature parameters. These are deliberately configurable and are
-        # not certification-final frequencies yet.
+        # V1 balanced feature profile selected after calibration sweep.
         # - A round has at most one natural Shield payload.
         # - Keys are independently assigned to other safe cells.
         # - The 3rd revealed Key grants one Vault Protection shield charge.
-        self.natural_shield_round_probability = 0.05
-        self.key_cell_probability = 0.13
+        self.natural_shield_round_probability = 0.10
+        self.key_cell_probability = 0.18
         self.keys_for_vault_protection = 3
         self.max_shield_charges = 2
 
