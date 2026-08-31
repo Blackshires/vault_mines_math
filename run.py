@@ -51,15 +51,34 @@ if __name__ == "__main__":
         )
     )
 
+    # Low-variance RTP smoke test. Cashing out after the first safe reveal avoids
+    # the huge Monte-Carlo variance created by high-mine deep cashouts.
+    shallow_sim = gamestate.simulate_feature_strategy(
+        rounds=100000,
+        target_safe_reveals=1,
+        seed=20260831,
+    )
+    print(
+        "V1 low-variance RTP Monte Carlo: "
+        f"rounds={shallow_sim['rounds']}, "
+        f"RTP={shallow_sim['rtp']:.6f} "
+        f"(target={shallow_sim['target_rtp']:.6f}), "
+        f"winRate={shallow_sim['winning_round_rate']:.4f}"
+    )
+
+    # Deeper feature-behaviour diagnostic. This intentionally has high variance:
+    # with 19-20 mines, rare surviving paths can pay thousands of times the bet.
+    # Its purpose at 100k rounds is feature incidence/transition coverage, not a
+    # precise RTP estimate; the analytic martingale validation above is the RTP proof.
     feature_sim = gamestate.simulate_feature_strategy(
         rounds=100000,
         target_safe_reveals=5,
+        seed=20260832,
     )
     print(
-        "V1 Keys/Shield Monte Carlo: "
+        "V1 deep Keys/Shield diagnostic: "
         f"rounds={feature_sim['rounds']}, "
-        f"RTP={feature_sim['rtp']:.6f} "
-        f"(target={feature_sim['target_rtp']:.6f}), "
+        f"sampleRTP={feature_sim['rtp']:.6f}, "
         f"winRate={feature_sim['winning_round_rate']:.4f}, "
         f"naturalShields={feature_sim['natural_shield_awards']}, "
         f"vaultProtections={feature_sim['vault_protection_awards']}, "
