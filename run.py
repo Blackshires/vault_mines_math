@@ -21,9 +21,7 @@ if __name__ == "__main__":
         # Stock XLSX analytics assumes slot-style symbol/game-type columns.
         "run_analysis": False,
         # Stock RGS LUT verification requires payoutMultiplier values in 0.10x
-        # increments. Vault Mines uses exact state-dependent cashout multipliers
-        # (typically 2 decimal places), so that generic LUT rule is not a valid
-        # verifier for this interactive game model.
+        # increments. Vault Mines uses exact state-dependent cashout multipliers.
         "run_format_checks": False,
     }
 
@@ -38,12 +36,39 @@ if __name__ == "__main__":
         f"worst_error={analytic['worst_error']:.3e}"
     )
 
+    feature_math = gamestate.validate_feature_martingale()
+    print(
+        "Feature martingale validation: "
+        f"{feature_math['states_checked']} local states, "
+        f"worst_error={feature_math['worst_error']:.3e}"
+    )
+
     print("Max legal safe reveals before x5000 cap:")
     print(
         ", ".join(
             f"{mines}m:{gamestate.max_legal_safe_picks(mines)}"
             for mines in range(1, 21)
         )
+    )
+
+    feature_sim = gamestate.simulate_feature_strategy(
+        rounds=100000,
+        target_safe_reveals=5,
+    )
+    print(
+        "V1 Keys/Shield Monte Carlo: "
+        f"rounds={feature_sim['rounds']}, "
+        f"RTP={feature_sim['rtp']:.6f} "
+        f"(target={feature_sim['target_rtp']:.6f}), "
+        f"winRate={feature_sim['winning_round_rate']:.4f}, "
+        f"naturalShields={feature_sim['natural_shield_awards']}, "
+        f"vaultProtections={feature_sim['vault_protection_awards']}, "
+        f"defusedMines={feature_sim['defused_mines']}"
+    )
+    print(
+        "V1 provisional feature frequencies: "
+        f"naturalShieldRound={config.natural_shield_round_probability:.3f}, "
+        f"keyPerEligibleSafeCell={config.key_cell_probability:.3f}"
     )
 
     if run_conditions["run_sims"]:
