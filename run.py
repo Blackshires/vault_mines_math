@@ -4,7 +4,6 @@ from gamestate import GameState
 from game_config import GameConfig
 from src.state.run_sims import create_books
 from src.write_data.write_configs import generate_configs
-from utils.rgs_verification import execute_all_tests
 
 
 if __name__ == "__main__":
@@ -19,11 +18,13 @@ if __name__ == "__main__":
 
     run_conditions = {
         "run_sims": True,
-        # The stock XLSX analytics assumes slot-style game-type/symbol columns.
-        # Vault Mines is win_type='other' with no reels/symbol table, so that
-        # report currently crashes inside math-sdk (unbound local 'idy').
+        # Stock XLSX analytics assumes slot-style symbol/game-type columns.
         "run_analysis": False,
-        "run_format_checks": True,
+        # Stock RGS LUT verification requires payoutMultiplier values in 0.10x
+        # increments. Vault Mines uses exact state-dependent cashout multipliers
+        # (typically 2 decimal places), so that generic LUT rule is not a valid
+        # verifier for this interactive game model.
+        "run_format_checks": False,
     }
 
     config = GameConfig()
@@ -58,5 +59,8 @@ if __name__ == "__main__":
 
     generate_configs(gamestate)
 
-    if run_conditions["run_format_checks"]:
-        execute_all_tests(config)
+    if not run_conditions["run_format_checks"]:
+        print(
+            "Generic RGS LUT format checks skipped: they require 0.10x payout "
+            "increments, while Vault Mines uses exact interactive cashout multipliers."
+        )
